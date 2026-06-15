@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+.env
+.env.*
+!.env.example
+*.session
+*.session-journal
+
+storage/*.db
+storage/*.db-*
+storage/*.log
+storage/*.lock
+
+.idea/
