@@ -278,6 +278,147 @@ HTML = r"""<!doctype html>
       text-align: center;
     }
 
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: #fbfcfe;
+    }
+
+    .stat-card strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 22px;
+      line-height: 1.1;
+    }
+
+    .filter-bar {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr minmax(220px, 1.4fr);
+      gap: 10px;
+      align-items: end;
+    }
+
+    .table-scroll {
+      max-height: 500px;
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    .table-scroll table {
+      min-width: 860px;
+    }
+
+    .table-scroll th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      box-shadow: 0 1px 0 var(--line);
+    }
+
+    .rule-content {
+      max-width: 520px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .rule-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .rule-badge.cut_after {
+      color: #7a2e0e;
+      background: #fff4e5;
+      border-color: #ffd8a8;
+    }
+
+    .rule-badge.drop_if_keyword {
+      color: #9f1239;
+      background: #fff1f2;
+      border-color: #fecdd3;
+    }
+
+    .rule-badge.remove_keyword {
+      color: #155e75;
+      background: #ecfeff;
+      border-color: #a5f3fc;
+    }
+
+    .rule-badge.regex {
+      color: #3730a3;
+      background: #eef2ff;
+      border-color: #c7d2fe;
+    }
+
+    .rule-badge.remove_url {
+      color: #166534;
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+      flex-wrap: wrap;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, .36);
+    }
+
+    .modal-backdrop[hidden] {
+      display: none;
+    }
+
+    .modal {
+      width: min(720px, 100%);
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, .24);
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-body {
+      padding: 16px;
+    }
+
     .docs {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -305,7 +446,7 @@ HTML = r"""<!doctype html>
     }
 
     @media (max-width: 900px) {
-      .grid, .fields, .fields.three, .docs {
+      .grid, .fields, .fields.three, .docs, .stats-grid, .filter-bar {
         grid-template-columns: 1fr;
       }
 
@@ -464,37 +605,35 @@ HTML = r"""<!doctype html>
     <section>
       <div class="section-head">
         <h2>广告 / 清洗规则</h2>
+        <button class="primary" id="openRuleModal" type="button">新增规则</button>
       </div>
       <div class="body">
-        <form id="ruleForm">
-          <div class="fields three">
-            <label>来源频道
-              <select name="channel_id" id="ruleChannel"></select>
-            </label>
-            <label>规则类型
-              <select name="rule_type">
-                <option value="cut_after">cut_after</option>
-                <option value="remove_keyword">remove_keyword</option>
-                <option value="regex">regex</option>
-                <option value="drop_if_keyword">drop_if_keyword</option>
-              </select>
-            </label>
-            <label>优先级
-              <input name="priority" type="number" value="80">
-            </label>
-          </div>
-          <label>规则内容
-            <textarea name="rule_value" placeholder="例如：✍️商务-广告合作： 或 https?://\\S+" required></textarea>
+        <div class="stats-grid" id="ruleStats"></div>
+        <div class="filter-bar">
+          <label>来源频道
+            <select id="ruleFilterChannel"></select>
           </label>
-          <div class="checks">
-            <label class="check">
-              <input name="enabled" type="checkbox" checked> 启用规则
-            </label>
-          </div>
-          <div class="toolbar">
-            <button class="primary" type="submit">新增规则</button>
-          </div>
-        </form>
+          <label>规则类型
+            <select id="ruleFilterType">
+              <option value="">全部类型</option>
+              <option value="cut_after">截断到此处</option>
+              <option value="drop_if_keyword">命中则丢弃整条</option>
+              <option value="remove_keyword">删除关键词</option>
+              <option value="regex">正则删除</option>
+              <option value="remove_url">删除链接</option>
+            </select>
+          </label>
+          <label>启用状态
+            <select id="ruleFilterEnabled">
+              <option value="">全部状态</option>
+              <option value="1">启用</option>
+              <option value="0">禁用</option>
+            </select>
+          </label>
+          <label>规则内容搜索
+            <input id="ruleSearch" placeholder="搜索频道、类型或规则内容">
+          </label>
+        </div>
       </div>
       <div id="rulesTable"></div>
     </section>
@@ -596,8 +735,57 @@ HTML = r"""<!doctype html>
     </section>
   </main>
 
+  <div class="modal-backdrop" id="ruleModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ruleModalTitle">
+      <div class="modal-head">
+        <h2 id="ruleModalTitle">新增清洗规则</h2>
+        <button class="ghost" data-close-rule-modal type="button">关闭</button>
+      </div>
+      <div class="modal-body">
+        <form id="ruleForm">
+          <div class="fields three">
+            <label>来源频道
+              <select name="channel_id" id="ruleChannel"></select>
+            </label>
+            <label>规则类型
+              <select name="rule_type">
+                <option value="cut_after">截断到此处</option>
+                <option value="drop_if_keyword">命中则丢弃整条</option>
+                <option value="remove_keyword">删除关键词</option>
+                <option value="regex">正则删除</option>
+              </select>
+            </label>
+            <label>优先级
+              <input name="priority" type="number" value="80">
+            </label>
+          </div>
+          <label>规则内容
+            <textarea name="rule_value" placeholder="例如：✍️商务-广告合作： 或 https?://\\S+" required></textarea>
+          </label>
+          <div class="checks">
+            <label class="check">
+              <input name="enabled" type="checkbox" checked> 启用规则
+            </label>
+          </div>
+          <div class="toolbar">
+            <button class="ghost" data-close-rule-modal type="button">取消</button>
+            <button class="primary" type="submit">保存规则</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script>
     const state = { categories: [], channels: [], targets: [], settings: [], clean_rules: [], classify_rules: [] };
+    const rulePager = { page: 1, pageSize: 20 };
+    const RULE_TYPE_LABELS = {
+      cut_after: "截断到此处",
+      drop_if_keyword: "命中则丢弃整条",
+      remove_keyword: "删除关键词",
+      regex: "正则删除",
+      remove_url: "删除链接",
+    };
     const notice = document.querySelector("#notice");
 
     function setNotice(text, error = false) {
@@ -742,32 +930,126 @@ HTML = r"""<!doctype html>
         </table>`;
     }
 
+    function channelLabel(channelId) {
+      const channel = state.channels.find(row => row.channel_id === channelId);
+      return channel?.channel_name ? `${channelId} ${channel.channel_name}` : channelId;
+    }
+
+    function ruleTypeLabel(ruleType) {
+      return RULE_TYPE_LABELS[ruleType] || ruleType;
+    }
+
+    function ruleTypeClass(ruleType) {
+      return Object.prototype.hasOwnProperty.call(RULE_TYPE_LABELS, ruleType) ? ruleType : "regex";
+    }
+
+    function ruleTypeBadge(ruleType) {
+      return `<span class="rule-badge ${ruleTypeClass(ruleType)}">${escapeHtml(ruleTypeLabel(ruleType))}</span>`;
+    }
+
+    function currentRuleFilters() {
+      return {
+        channel: document.querySelector("#ruleFilterChannel")?.value || "",
+        type: document.querySelector("#ruleFilterType")?.value || "",
+        enabled: document.querySelector("#ruleFilterEnabled")?.value || "",
+        search: (document.querySelector("#ruleSearch")?.value || "").trim().toLowerCase(),
+      };
+    }
+
+    function filteredRules() {
+      const filters = currentRuleFilters();
+      return state.clean_rules.filter(row => {
+        const enabled = Number(row.enabled) ? "1" : "0";
+        const searchable = [
+          row.channel_id,
+          channelLabel(row.channel_id),
+          ruleTypeLabel(row.rule_type),
+          row.rule_type,
+          row.rule_value,
+        ].join(" ").toLowerCase();
+
+        return (!filters.channel || row.channel_id === filters.channel)
+          && (!filters.type || row.rule_type === filters.type)
+          && (!filters.enabled || enabled === filters.enabled)
+          && (!filters.search || searchable.includes(filters.search));
+      });
+    }
+
+    function renderRuleStats(filtered) {
+      const total = state.clean_rules.length;
+      const enabled = state.clean_rules.filter(row => Number(row.enabled)).length;
+      const disabled = total - enabled;
+      document.querySelector("#ruleStats").innerHTML = `
+        <div class="stat-card"><span class="muted">全部规则数量</span><strong>${total}</strong></div>
+        <div class="stat-card"><span class="muted">启用规则数量</span><strong>${enabled}</strong></div>
+        <div class="stat-card"><span class="muted">禁用规则数量</span><strong>${disabled}</strong></div>
+        <div class="stat-card"><span class="muted">当前筛选结果</span><strong>${filtered.length}</strong></div>
+      `;
+    }
+
+    function renderRulePagination(total, totalPages) {
+      const start = total ? (rulePager.page - 1) * rulePager.pageSize + 1 : 0;
+      const end = Math.min(total, rulePager.page * rulePager.pageSize);
+      return `
+        <div class="pagination">
+          <span class="muted">显示 ${start}-${end} 条，共 ${total} 条；第 ${rulePager.page} / ${totalPages} 页</span>
+          <div class="toolbar">
+            <button class="ghost" data-rule-page="prev" type="button" ${rulePager.page <= 1 ? "disabled" : ""}>上一页</button>
+            <button class="ghost" data-rule-page="next" type="button" ${rulePager.page >= totalPages ? "disabled" : ""}>下一页</button>
+          </div>
+        </div>
+      `;
+    }
+
     function renderRules() {
       const host = document.querySelector("#rulesTable");
+      const filtered = filteredRules();
+      renderRuleStats(filtered);
+
+      const totalPages = Math.max(1, Math.ceil(filtered.length / rulePager.pageSize));
+      if (rulePager.page > totalPages) rulePager.page = totalPages;
+
       if (!state.clean_rules.length) {
         host.innerHTML = '<div class="empty">暂无清洗规则</div>';
         return;
       }
+
+      if (!filtered.length) {
+        host.innerHTML = '<div class="empty">没有符合筛选条件的清洗规则</div>' + renderRulePagination(0, 1);
+        return;
+      }
+
+      const pageRows = filtered.slice(
+        (rulePager.page - 1) * rulePager.pageSize,
+        rulePager.page * rulePager.pageSize,
+      );
+
       host.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>频道 ID</th><th>类型</th><th>内容</th><th>优先级</th><th>状态</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.clean_rules.map(row => `
+        <div class="table-scroll">
+          <table>
+            <thead>
               <tr>
-                <td class="id">${escapeHtml(row.channel_id)}</td>
-                <td>${escapeHtml(row.rule_type)}</td>
-                <td>${escapeHtml(row.rule_value)}</td>
-                <td>${escapeHtml(row.priority)}</td>
-                <td>${statusPill(row.enabled)}</td>
-                <td><button class="danger" data-delete-rule="${row.id}" type="button">删除</button></td>
+                <th>来源频道</th><th>规则类型</th><th>规则内容</th><th>优先级</th><th>状态</th><th>操作</th>
               </tr>
-            `).join("")}
-          </tbody>
-        </table>`;
+            </thead>
+            <tbody>
+              ${pageRows.map(row => `
+                <tr>
+                  <td>
+                    <div class="id">${escapeHtml(row.channel_id)}</div>
+                    <div class="muted">${escapeHtml(channelLabel(row.channel_id).replace(row.channel_id, "").trim())}</div>
+                  </td>
+                  <td>${ruleTypeBadge(row.rule_type)}</td>
+                  <td class="rule-content">${escapeHtml(row.rule_value)}</td>
+                  <td>${escapeHtml(row.priority)}</td>
+                  <td>${statusPill(row.enabled)}</td>
+                  <td><button class="danger" data-delete-rule="${row.id}" type="button">删除</button></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        ${renderRulePagination(filtered.length, totalPages)}`;
     }
 
     function renderClassifyRules() {
@@ -799,10 +1081,18 @@ HTML = r"""<!doctype html>
 
     function renderRuleChannels() {
       const select = document.querySelector("#ruleChannel");
+      const filter = document.querySelector("#ruleFilterChannel");
+      const currentFilter = filter.value;
       select.innerHTML = state.channels.map(row => {
         const label = `${row.channel_id} ${row.channel_name || ""}`.trim();
         return `<option value="${escapeHtml(row.channel_id)}">${escapeHtml(label)}</option>`;
       }).join("");
+
+      filter.innerHTML = '<option value="">全部来源频道</option>' + state.channels.map(row => {
+        const label = `${row.channel_id} ${row.channel_name || ""}`.trim();
+        return `<option value="${escapeHtml(row.channel_id)}">${escapeHtml(label)}</option>`;
+      }).join("");
+      filter.value = state.channels.some(row => row.channel_id === currentFilter) ? currentFilter : "";
     }
 
     function renderCategoryOptions() {
@@ -836,6 +1126,35 @@ HTML = r"""<!doctype html>
 
     document.querySelector("#refreshBtn").addEventListener("click", () => {
       loadAll().catch(err => setNotice(err.message, true));
+    });
+
+    function openRuleModal() {
+      const modal = document.querySelector("#ruleModal");
+      modal.hidden = false;
+      document.querySelector("#ruleForm textarea[name=rule_value]").focus();
+    }
+
+    function closeRuleModal() {
+      document.querySelector("#ruleModal").hidden = true;
+    }
+
+    document.querySelector("#openRuleModal").addEventListener("click", openRuleModal);
+    document.querySelector("#ruleModal").addEventListener("click", event => {
+      if (event.target.id === "ruleModal" || event.target.dataset.closeRuleModal !== undefined) {
+        closeRuleModal();
+      }
+    });
+
+    for (const selector of ["#ruleFilterChannel", "#ruleFilterType", "#ruleFilterEnabled"]) {
+      document.querySelector(selector).addEventListener("change", () => {
+        rulePager.page = 1;
+        renderRules();
+      });
+    }
+
+    document.querySelector("#ruleSearch").addEventListener("input", () => {
+      rulePager.page = 1;
+      renderRules();
     });
 
     document.querySelector("#channelForm").addEventListener("submit", async event => {
@@ -913,9 +1232,12 @@ HTML = r"""<!doctype html>
           method: "POST",
           body: JSON.stringify(formData(form)),
         });
-        form.rule_value.value = "";
+        form.reset();
+        form.priority.value = 80;
+        form.enabled.checked = true;
+        closeRuleModal();
         await loadAll();
-        setNotice("清洗规则已新增。");
+        setNotice("清洗规则已保存。");
       } catch (err) {
         setNotice(err.message, true);
       }
@@ -938,6 +1260,19 @@ HTML = r"""<!doctype html>
     });
 
     document.body.addEventListener("click", async event => {
+      const pageAction = event.target.dataset.rulePage;
+      if (pageAction) {
+        const totalPages = Math.max(1, Math.ceil(filteredRules().length / rulePager.pageSize));
+        if (pageAction === "prev") {
+          rulePager.page = Math.max(1, rulePager.page - 1);
+        }
+        if (pageAction === "next") {
+          rulePager.page = Math.min(totalPages, rulePager.page + 1);
+        }
+        renderRules();
+        return;
+      }
+
       const channelId = event.target.dataset.deleteChannel;
       const ruleId = event.target.dataset.deleteRule;
       const classifyId = event.target.dataset.deleteClassify;
