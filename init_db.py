@@ -104,6 +104,15 @@ CREATE TABLE IF NOT EXISTS forwarded_groups (
     text_hash TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS message_map (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_channel_id TEXT NOT NULL,
+    source_message_id INTEGER NOT NULL,
+    target_channel_id TEXT NOT NULL,
+    target_message_id INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -125,6 +134,12 @@ CREATE INDEX IF NOT EXISTS idx_forwarded_messages_source
 
 CREATE INDEX IF NOT EXISTS idx_forwarded_groups_source
     ON forwarded_groups(source_channel_id, grouped_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_message_map_unique
+    ON message_map(source_channel_id, source_message_id, target_channel_id);
+
+CREATE INDEX IF NOT EXISTS idx_message_map_lookup
+    ON message_map(source_channel_id, source_message_id);
 """
 
 
@@ -410,6 +425,28 @@ def sync_default_settings(conn) -> None:
     )
 
 
+def sync_message_map(conn) -> None:
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO message_map (
+            source_channel_id,
+            source_message_id,
+            target_channel_id,
+            target_message_id,
+            created_at
+        )
+        SELECT
+            source_channel_id,
+            source_message_id,
+            target_channel_id,
+            target_message_id,
+            created_at
+        FROM forwarded_messages
+        WHERE target_message_id IS NOT NULL
+        """
+    )
+
+
 def migrate_existing_db(conn) -> None:
     for table_name, columns in MIGRATIONS.items():
         existing_columns = table_columns(conn, table_name)
@@ -431,6 +468,7 @@ def migrate_existing_db(conn) -> None:
     remove_legacy_category_checks(conn)
     sync_categories(conn)
     sync_default_settings(conn)
+    sync_message_map(conn)
 
 
 def init_db() -> None:
