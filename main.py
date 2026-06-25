@@ -17,11 +17,13 @@ from db import (
     get_enabled_channels,
     get_float_setting,
     get_int_setting,
+    get_mapped_target_message_id,
     get_setting,
     get_targets,
     is_source_group_forwarded,
     is_source_message_forwarded,
     make_group_key,
+    save_message_map,
     save_forwarded_group,
     save_forwarded_message,
 )
@@ -267,6 +269,60 @@ async def refresh_config_loop(runtime_config: RuntimeConfig) -> None:
             logging.exception("Config refresh failed; keeping previous config")
 
 
+def get_reply_source_message_id(message) -> int | None:
+    reply_to = getattr(message, "reply_to", None)
+    reply_to_msg_id = getattr(reply_to, "reply_to_msg_id", None)
+    if reply_to_msg_id is not None:
+        return int(reply_to_msg_id)
+
+    reply_to_msg_id = getattr(message, "reply_to_msg_id", None)
+    return int(reply_to_msg_id) if reply_to_msg_id is not None else None
+
+
+def choose_album_reply_source_message_id(messages: list) -> int | None:
+    for message in sorted(messages, key=lambda item: item.id):
+        reply_to_msg_id = get_reply_source_message_id(message)
+        if reply_to_msg_id is not None:
+            return reply_to_msg_id
+    return None
+
+
+def resolve_reply_to_target_message_id(
+    *,
+    source_channel_id: str,
+    source_message_id: int,
+    parent_source_message_id: int | None,
+    target_channel_id: str,
+) -> int | None:
+    if parent_source_message_id is None:
+        return None
+
+    parent_target_message_id = get_mapped_target_message_id(
+        source_channel_id=source_channel_id,
+        source_message_id=parent_source_message_id,
+        target_channel_id=target_channel_id,
+    )
+    if parent_target_message_id is None:
+        logging.info(
+            "Reply mapping miss: source=%s msg_id=%s parent_source_msg_id=%s target=%s",
+            source_channel_id,
+            source_message_id,
+            parent_source_message_id,
+            target_channel_id,
+        )
+        return None
+
+    logging.info(
+        "Reply mapping hit: source=%s msg_id=%s parent_source_msg_id=%s target=%s parent_target_msg_id=%s",
+        source_channel_id,
+        source_message_id,
+        parent_source_message_id,
+        target_channel_id,
+        parent_target_message_id,
+    )
+    return parent_target_message_id
+
+
 async def process_source_message(
     client: TelegramClient,
     *,
@@ -353,12 +409,19 @@ async def process_source_message(
             category,
         )
         return False
+    reply_to = resolve_reply_to_target_message_id(
+        source_channel_id=source_channel_id,
+        source_message_id=source_message_id,
+        parent_source_message_id=get_reply_source_message_id(message),
+        target_channel_id=target_channel_id,
+    )
     logging.info(
-        "Forwarding: source=%s msg_id=%s category=%s target=%s",
+        "Forwarding: source=%s msg_id=%s category=%s target=%s reply_to=%s",
         source_channel_id,
         source_message_id,
         category,
         target_channel_id,
+        reply_to,
     )
     sent_message = await send_message(
         client,
@@ -367,6 +430,7 @@ async def process_source_message(
         formatting_entities=formatting_entities if cleaned_text else None,
         media=message.media,
         keep_media=bool(source_channel["keep_media"]),
+        reply_to=reply_to,
     )
 
     sent_message_id = getattr(sent_message, "id", None)
@@ -377,6 +441,12 @@ async def process_source_message(
         target_message_id=sent_message_id,
         category=category,
         text_hash=make_hash(cleaned_text) if cleaned_text else None,
+    )
+    save_message_map(
+        source_channel_id=source_channel_id,
+        source_message_id=source_message_id,
+        target_channel_id=target_channel_id,
+        target_message_id=sent_message_id,
     )
     logging.info("Forwarded: target_msg_id=%s", sent_message_id)
 
@@ -475,13 +545,20 @@ async def process_source_album(
             category,
         )
         return False
+    reply_to = resolve_reply_to_target_message_id(
+        source_channel_id=source_channel_id,
+        source_message_id=album_messages[0].id,
+        parent_source_message_id=choose_album_reply_source_message_id(album_messages),
+        target_channel_id=target_channel_id,
+    )
     media_items = [message.media for message in album_messages if message.media]
     logging.info(
-        "Forwarding album: group_key=%s messages=%s category=%s target=%s",
+        "Forwarding album: group_key=%s messages=%s category=%s target=%s reply_to=%s",
         group_key,
         [message.id for message in album_messages],
         category,
         target_channel_id,
+        reply_to,
     )
     sent = await send_media_group(
         client,
@@ -490,6 +567,7 @@ async def process_source_album(
         formatting_entities=formatting_entities if cleaned_text else None,
         media_items=media_items,
         keep_media=bool(source_channel["keep_media"]),
+        reply_to=reply_to,
     )
     target_ids = sent_message_ids(sent)
 
@@ -513,6 +591,12 @@ async def process_source_album(
             target_message_id=target_message_id,
             category=category,
             text_hash=make_hash(cleaned_text) if cleaned_text else None,
+        )
+        save_message_map(
+            source_channel_id=source_channel_id,
+            source_message_id=source_message.id,
+            target_channel_id=target_channel_id,
+            target_message_id=target_message_id,
         )
 
     logging.info("Forwarded album: group_key=%s target_msg_ids=%s", group_key, target_ids)
