@@ -11,6 +11,7 @@ async def send_message(
     formatting_entities=None,
     media,
     keep_media: bool,
+    reply_to: int | None = None,
 ):
     if media and keep_media:
         return await client.send_file(
@@ -18,6 +19,7 @@ async def send_message(
             media,
             caption=text or None,
             formatting_entities=formatting_entities if text else None,
+            reply_to=reply_to,
         )
 
     if text:
@@ -25,6 +27,7 @@ async def send_message(
             target_channel_id,
             text,
             formatting_entities=formatting_entities,
+            reply_to=reply_to,
         )
 
     return None
@@ -38,6 +41,7 @@ async def send_media_group(
     formatting_entities=None,
     media_items: list,
     keep_media: bool,
+    reply_to: int | None = None,
 ):
     if media_items and keep_media:
         return await client.send_file(
@@ -45,6 +49,7 @@ async def send_media_group(
             media_items,
             caption=text or None,
             formatting_entities=formatting_entities if text else None,
+            reply_to=reply_to,
         )
 
     if text:
@@ -52,6 +57,7 @@ async def send_media_group(
             target_channel_id,
             text,
             formatting_entities=formatting_entities,
+            reply_to=reply_to,
         )
 
     return None
