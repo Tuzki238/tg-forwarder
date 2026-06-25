@@ -225,6 +225,59 @@ def is_source_message_forwarded(source_channel_id: str, source_message_id: int) 
     return bool(row)
 
 
+def get_mapped_target_message_id(
+    *,
+    source_channel_id: str,
+    source_message_id: int,
+    target_channel_id: str,
+) -> int | None:
+    with connection() as conn:
+        row = conn.execute(
+            """
+            SELECT target_message_id
+            FROM message_map
+            WHERE source_channel_id = ?
+              AND source_message_id = ?
+              AND target_channel_id = ?
+            LIMIT 1
+            """,
+            (source_channel_id, source_message_id, target_channel_id),
+        ).fetchone()
+    return int(row["target_message_id"]) if row else None
+
+
+def save_message_map(
+    *,
+    source_channel_id: str,
+    source_message_id: int,
+    target_channel_id: str,
+    target_message_id: int | None,
+) -> None:
+    if target_message_id is None:
+        return
+
+    with connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO message_map (
+                source_channel_id,
+                source_message_id,
+                target_channel_id,
+                target_message_id
+            )
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(source_channel_id, source_message_id, target_channel_id)
+            DO UPDATE SET target_message_id = excluded.target_message_id
+            """,
+            (
+                source_channel_id,
+                source_message_id,
+                target_channel_id,
+                target_message_id,
+            ),
+        )
+
+
 def make_group_key(source_channel_id: str, grouped_id: int | str) -> str:
     return f"{source_channel_id}:{grouped_id}"
 
